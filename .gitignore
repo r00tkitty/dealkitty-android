@@ -32,6 +32,11 @@ yarn-error.*
 
 # local env files
 .env*.local
+.env
+
+# Mobile platform service configs (often contain keys)
+GoogleService-Info.plist
+google-services.json
 
 # typescript
 *.tsbuildinfo

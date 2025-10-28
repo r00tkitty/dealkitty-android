@@ -2,15 +2,15 @@
 // For now, we manage a single setting: the preferred store for claiming deals.
 
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Button, StyleSheet, View, Switch, Modal, Pressable } from 'react-native';
+import { Alert, Button, StyleSheet, View, Switch, Modal, Pressable, ScrollView, Text } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as WebBrowser from 'expo-web-browser';
 
-import ParallaxScrollView from '@/components/parallax-scroll-view';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Fonts } from '@/constants/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 
 // Key we use to store the preferred store in AsyncStorage
 const PREFERRED_STORE_KEY = 'preferredStore';
@@ -43,6 +43,21 @@ const REGION_OPTIONS: { code: string; label: string }[] = [
 ];
 
 export default function OptionsScreen() {
+  const scheme = useColorScheme();
+  const isDark = scheme === 'dark';
+  const STORE_LABELS: Record<string, string> = {
+    steam: 'Steam',
+    epic: 'Epic Games Store',
+    humble: 'Humble Store',
+    gog: 'GOG',
+  };
+  const cardBg = isDark ? '#0f0f0f' : '#fff';
+  const cardBorder = isDark ? '#333' : '#ddd';
+  const btnBg = isDark ? '#1f1f1f' : '#f5f5f5';
+  const btnBorder = isDark ? '#444' : '#ccc';
+  const itemBg = btnBg;
+  const itemSelectedBg = '#123a5e';
+  const itemSelectedText = '#cfe7ff';
   // preferred holds the current choice from storage (or undefined if none yet)
   const [preferred, setPreferred] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(true);
@@ -78,7 +93,8 @@ export default function OptionsScreen() {
     try {
       await AsyncStorage.setItem(PREFERRED_STORE_KEY, platform);
       setPreferred(platform);
-      Alert.alert('Saved', `${platform} is now your preferred store.`);
+  const label = STORE_LABELS[platform] ?? platform;
+  Alert.alert('Saved', `${label} is now your preferred store.`);
     } catch (e) {
       Alert.alert('Error', 'Could not save your preference.');
     }
@@ -133,56 +149,72 @@ export default function OptionsScreen() {
   const regionLabel = useMemo(() => REGION_OPTIONS.find(r => r.code === region)?.label ?? 'Auto (device locale)', [region]);
 
   return (
-    <>
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#D0D0D0', dark: '#353636' }}
-      headerImage={
-        <IconSymbol
-          size={310}
-          color="#808080"
-          name="gearshape"
-          style={styles.headerImage}
-        />
-      }>
-      {/* Title */}
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText
-          type="title"
-          style={{
-            fontFamily: Fonts.rounded,
-          }}>
-          Options
-        </ThemedText>
-      </ThemedView>
+    <ThemedView style={{ flex: 1 }}>
+      <SafeAreaView style={{ flex: 1 }} edges={['top']}>
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 24 }}>
+      {/* Small header */}
+      <ThemedText
+        type="title"
+        style={{ fontFamily: Fonts.rounded }}
+      >
+        Settings
+      </ThemedText>
 
       {/* Current status */}
-      <ThemedText type="subtitle" style={{ marginTop: 8 }}>Preferred store</ThemedText>
-      <ThemedText>
-        {loading ? 'Loading…' : preferred ? preferred : 'None set yet'}
+      <ThemedText type="subtitle" style={{ marginTop: 18 }}>Preferred store</ThemedText>
+      <ThemedText style={{ opacity: 0.8 }}>
+  {loading ? 'Loading…' : preferred ? (STORE_LABELS[preferred] ?? preferred) : 'None set yet'}
       </ThemedText>
 
       {/* Actions */}
-      <ThemedView style={{ marginTop: 16, gap: 8 }}>
-        <ThemedText type="subtitle">Set preferred to:</ThemedText>
-        <View style={styles.row}>
-          <Button title="Steam" onPress={() => setPreferredStore('steam')} />
-          <Button title="Epic" onPress={() => setPreferredStore('epic')} />
-          <Button title="Humble" onPress={() => setPreferredStore('humble')} />
+      <ThemedView style={{ marginTop: 10 }}>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+          {['steam','epic','humble'].map(p => (
+            <Pressable
+              key={p}
+              onPress={() => setPreferredStore(p)}
+              style={{
+                paddingVertical: 8,
+                paddingHorizontal: 14,
+                borderRadius: 999,
+                borderWidth: 1,
+                borderColor: preferred === p ? '#4da3ff' : btnBorder,
+                backgroundColor: preferred === p ? (isDark ? '#0b2a44' : '#eaf4ff') : 'transparent',
+              }}
+              accessibilityRole="button"
+              accessibilityState={{ selected: preferred === p }}
+              accessibilityLabel={`Set preferred store to ${STORE_LABELS[p] ?? p}`}
+            >
+              <ThemedText style={{ fontWeight: '600' }}>{STORE_LABELS[p] ?? (p[0].toUpperCase()+p.slice(1))}</ThemedText>
+            </Pressable>
+          ))}
         </View>
-        <Button title="Clear preferred" onPress={clearPreferredStore} />
-        <Button title="Test open preferred" onPress={testOpenPreferred} />
+        <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
+          <Pressable
+            onPress={clearPreferredStore}
+            style={{ paddingVertical: 8, paddingHorizontal: 14, borderRadius: 999, borderWidth: 1, borderColor: btnBorder }}
+          >
+            <ThemedText>Clear</ThemedText>
+          </Pressable>
+          <Pressable
+            onPress={testOpenPreferred}
+            style={{ paddingVertical: 8, paddingHorizontal: 14, borderRadius: 999, borderWidth: 1, borderColor: btnBorder }}
+          >
+            <ThemedText>Test open</ThemedText>
+          </Pressable>
+        </View>
       </ThemedView>
 
       {/* Humble toggle */}
       <ThemedView style={{ marginTop: 24 }}>
         <ThemedText type="subtitle">Include Humble Store deals</ThemedText>
-        <View style={styles.row}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 }}>
           <Switch
             value={includeHumble}
             onValueChange={toggleIncludeHumble}
             accessibilityLabel="Toggle Humble Store deals"
           />
-          <ThemedText>
+          <ThemedText style={{ marginLeft: 12, flex: 1 }}>
             {includeHumble ? 'Humble deals are shown.' : 'Humble deals are hidden.'}
           </ThemedText>
         </View>
@@ -195,27 +227,26 @@ export default function OptionsScreen() {
       {/* Country/Region selection */}
       <ThemedView style={{ marginTop: 24 }}>
         <ThemedText type="subtitle">Country / Region</ThemedText>
-        <ThemedText style={{ marginTop: 4 }}>
-          Selected: {regionLabel}
-        </ThemedText>
-        <View style={{ marginTop: 8 }}>
-          <Pressable
-            onPress={() => setRegionModalVisible(true)}
-            style={{
-              paddingVertical: 10,
-              paddingHorizontal: 12,
-              borderRadius: 10,
-              borderWidth: 1,
-              borderColor: '#444',
-              backgroundColor: '#1f1f1f',
-              alignSelf: 'flex-start',
-            }}
-            accessibilityRole="button"
-            accessibilityLabel="Choose country or region"
-          >
-            <ThemedText>Change…</ThemedText>
-          </Pressable>
-        </View>
+        <Pressable
+          onPress={() => setRegionModalVisible(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Choose country or region"
+          style={{
+            marginTop: 8,
+            paddingVertical: 12,
+            paddingHorizontal: 14,
+            borderRadius: 10,
+            borderWidth: 1,
+            borderColor: btnBorder,
+            backgroundColor: 'transparent',
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
+          <ThemedText>{regionLabel}</ThemedText>
+          <Text style={{ color: isDark ? '#9ba1a6' : '#6b7280' }}>›</Text>
+        </Pressable>
         <ThemedText style={{ marginTop: 8, opacity: 0.8 }}>
           This helps us format prices for your region. Conversion accuracy will improve over time.
         </ThemedText>
@@ -229,11 +260,11 @@ export default function OptionsScreen() {
           Otherwise, you&apos;ll be asked to choose.
         </ThemedText>
       </ThemedView>
-  </ParallaxScrollView>
+  </ScrollView>
     {/* Region modal */}
     <Modal visible={regionModalVisible} transparent animationType="fade">
       <View style={styles.modalBackdrop}>
-        <View style={styles.modalCard}>
+        <View style={[styles.modalCard, { backgroundColor: cardBg, borderColor: cardBorder }]}>
           <ThemedText type="subtitle">Choose your country/region</ThemedText>
           <ThemedText style={{ marginTop: 6, opacity: 0.9 }}>
             Caution: Costs are directly converted from US prices. Prices may vary.
@@ -248,14 +279,14 @@ export default function OptionsScreen() {
                   paddingHorizontal: 12,
                   borderRadius: 10,
                   borderWidth: 1,
-                  borderColor: region === opt.code ? '#4da3ff' : '#444',
-                  backgroundColor: region === opt.code ? '#123a5e' : '#1f1f1f',
+                  borderColor: region === opt.code ? '#4da3ff' : btnBorder,
+                  backgroundColor: region === opt.code ? itemSelectedBg : itemBg,
                 }}
                 accessibilityRole="button"
                 accessibilityState={{ selected: region === opt.code }}
                 accessibilityLabel={`Select ${opt.label}`}
               >
-                <ThemedText>{opt.label}</ThemedText>
+                <ThemedText style={region === opt.code ? { color: itemSelectedText } : undefined}>{opt.label}</ThemedText>
               </Pressable>
             ))}
           </View>
@@ -265,7 +296,8 @@ export default function OptionsScreen() {
         </View>
       </View>
     </Modal>
-    </>
+      </SafeAreaView>
+    </ThemedView>
   );
 }
 

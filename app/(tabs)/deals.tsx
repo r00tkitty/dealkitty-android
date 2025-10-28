@@ -169,14 +169,28 @@ export default function DealsScreen() {
     // Save the user's preferred platform for later. Next time, we'll auto-open it.
     await AsyncStorage.setItem("preferredStore", platform);
   };
+  // Display labels for platform keys
+  const STORE_LABELS: Record<string, string> = {
+    steam: 'Steam',
+    epic: 'Epic Games Store',
+    humble: 'Humble Store',
+    gog: 'GOG',
+  };
 
   // Live data state: deals, paging, loading, errors
   const [deals, setDeals] = useState<Deal[]>([]);
   const [page, setPage] = useState(0); // 0-based pageNumber as CheapShark expects
   const [refreshing, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true); // whether more pages are likely available
   const [error, setError] = useState<string | null>(null);
   const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null);
+  // Track list layout vs content height to avoid firing onEndReached when content doesn't scroll
+  const [listLayoutHeight, setListLayoutHeight] = useState(0);
+  const [listContentHeight, setListContentHeight] = useState(0);
+  const canScroll = listContentHeight > listLayoutHeight + 24; // require some slack before paging
+  // Cooldown to prevent rapid fire paging
+  const lastLoadRef = useRef(0);
 
   // Tiny fallback dataset used only on web when network calls are blocked by CORS,
   // so the UI still demonstrates behavior.
@@ -252,9 +266,13 @@ export default function DealsScreen() {
       // Do not drop multi-store deals here; we already control inclusion via storeIDParam.
       // Leave Humble filtering to the UI layer so multi-store games are preserved.
       setDeals(prev => mergeDealsByGame(replace ? result : [...prev, ...result]));
+      // If fewer than pageSize returned, likely no more pages
+      setHasMore(result.length >= 50);
     } catch (e: any) {
       const msg = e?.message ?? 'Failed to load deals';
       setError(msg);
+      // Back off pagination on errors to avoid thrashing
+      setHasMore(false);
       if (Platform.OS === 'web') {
         // Provide a small fallback so users see the UI even with CORS limitations
         setDeals(mergeDealsByGame(FALLBACK));
@@ -267,6 +285,7 @@ export default function DealsScreen() {
     // Reset list to page 0
     setDeals([]);
     setPage(0);
+    setHasMore(true);
     fetchPage(0, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storeIDParam]);
@@ -554,7 +573,7 @@ export default function DealsScreen() {
                         style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 6 }}
                         accessibilityRole="checkbox"
                         accessibilityState={{ checked: selected }}
-                        accessibilityLabel={`Include ${p}`}
+                        accessibilityLabel={`Include ${STORE_LABELS[p] ?? p}`}
                       >
                         <View
                           style={{
@@ -567,7 +586,7 @@ export default function DealsScreen() {
                             marginRight: 10,
                           }}
                         />
-                        <Text style={{ color: '#eee', fontSize: 16 }}>{p}</Text>
+                        <Text style={{ color: '#eee', fontSize: 16 }}>{STORE_LABELS[p] ?? p}</Text>
                       </Pressable>
                     );
                   })}
@@ -657,6 +676,9 @@ export default function DealsScreen() {
         ref={listRef}
         contentContainerStyle={{ padding: 10, backgroundColor: 'black' }}
         data={sortedDeals}
+        bounces={hasMore}
+        alwaysBounceVertical={hasMore}
+        overScrollMode={hasMore ? 'auto' : 'never'}
         keyExtractor={(item) => {
           // Use the same identity logic as merge: steamAppId > gameId > normalized title
           if (item.steamAppId) return `steamapp:${item.steamAppId}`;
@@ -688,24 +710,39 @@ export default function DealsScreen() {
           </View>
         }
         refreshing={refreshing}
+        onLayout={(e) => setListLayoutHeight(e.nativeEvent.layout.height)}
+        onContentSizeChange={(_, h) => setListContentHeight(h)}
         onRefresh={async () => {
           setRefreshing(true);
           await fetchPage(0, true);
           setPage(0);
+          setHasMore(true);
           setRefreshing(false);
         }}
-        onEndReachedThreshold={0.5}
+        onEndReachedThreshold={0.1}
         onEndReached={async () => {
-          if (loadingMore || sortedDeals.length === 0) return;
+          // Avoid paging when:
+          // - already loading
+          // - no items
+          // - content doesn't scroll (e.g., 0-2 tiles)
+          // - no more pages
+          // - within cooldown
+          const now = Date.now();
+          if (loadingMore || sortedDeals.length === 0 || !canScroll || !hasMore || (now - lastLoadRef.current) < 1500) return;
+          lastLoadRef.current = now;
           setLoadingMore(true);
           const next = page + 1;
           await fetchPage(next, false);
           setPage(next);
           setLoadingMore(false);
         }}
-        ListFooterComponent={loadingMore ? (
-          <Text style={{ color: '#888', textAlign: 'center', paddingVertical: 12 }}>Loading more…</Text>
-        ) : null}
+        ListFooterComponent={
+          loadingMore ? (
+            <Text style={{ color: '#888', textAlign: 'center', paddingVertical: 12 }}>Loading more…</Text>
+          ) : !hasMore && sortedDeals.length > 0 ? (
+            <Text style={{ color: '#666', textAlign: 'center', paddingVertical: 10 }}>You’ve reached the end.</Text>
+          ) : null
+        }
       />
 
       {/* Modal: a simple popup that appears above the screen content. */}
@@ -733,7 +770,7 @@ export default function DealsScreen() {
             {platforms.map((p) => (
               <Button
                 key={p}
-                title={`Claim on ${p}`}
+                title={`Claim on ${STORE_LABELS[p] ?? p}`}
                 onPress={() => {
                   // Open the selected platform and then close the modal.
                   openPlatform(p, selectedDeal ?? undefined);
@@ -746,7 +783,7 @@ export default function DealsScreen() {
             {platforms.map((p) => (
               <Button
                 key={p + "-pref"}
-                title={`Set ${p} as preferred and claim`}
+                title={`Set ${STORE_LABELS[p] ?? p} as preferred and claim`}
                 onPress={async () => {
                   // Save this platform as the user's preference for next time,
 

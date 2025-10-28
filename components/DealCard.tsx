@@ -2,7 +2,7 @@
 // It displays an image, title, price, and icons for the stores where you can claim it.
 // It also has a "Claim" button that tells the parent screen to handle the claiming logic.
 
-import { View, Text, Image, Button, Platform } from "react-native"; // Import necessary components from React Native
+import { View, Text, Image, Pressable } from "react-native"; // Import necessary components from React Native
 import SteamLogo from "@/assets/icons/steam.svg";
 import EpicLogo from "@/assets/icons/epic.svg";
 import GogLogo from "@/assets/icons/gog.svg";
@@ -32,19 +32,33 @@ type DealCardProps = {
 export default function DealCard({ title, image, price, platforms, onClaim, dealType, localApprox, discountPct, localKind }: DealCardProps) {
     const colorScheme = useColorScheme();
     const theme = Colors[colorScheme ?? "light"];
-    return (
-        // Outer container with a dark background and rounded corners
-        <View style={{
-        backgroundColor: "#1e1e1e",
-        borderRadius: 10,
-        padding: 10,
-        marginVertical: 8,}}>
+    const storeLabel = (name: string) => {
+      switch ((name || '').toLowerCase()) {
+        case 'steam': return 'Steam';
+        case 'epic': return 'Epic Games Store';
+        case 'humble':
+        case 'humble store': return 'Humble Store';
+        case 'gog': return 'GOG';
+        default: return name ? name.charAt(0).toUpperCase() + name.slice(1) : '';
+      }
+    };
+  return (
+    // Minimal card: neutral background, thin border, no shadows
+    <View style={{
+    backgroundColor: colorScheme === 'dark' ? "#181818" : "#ffffff",
+    borderRadius: 12,
+    padding: 12,
+    marginVertical: 10,
+    borderWidth: 1,
+    borderColor: colorScheme === 'dark' ? "#2a2a2a" : "#e8e8e8",
+    }}>
             {/* Image container so we can overlay a small badge */}
-            <View style={{ position: 'relative' }}>
+            <View style={{ position: 'relative', borderRadius: 10, overflow: 'hidden' }}>
                 <Image
                     // Images in RN need a "source" object; here we load from a URL
                     source={{ uri: image }}
-                    style={{ width: "100%", height: 150, borderRadius: 10 }}
+                    style={{ width: "100%", height: 150 }}
+                    resizeMode="cover"
                 />
                 {dealType && (
                   <View
@@ -54,61 +68,110 @@ export default function DealCard({ title, image, price, platforms, onClaim, deal
                       position: 'absolute',
                       top: 8,
                       left: 8,
-                      paddingVertical: 4,
-                      paddingHorizontal: 8,
-                      borderRadius: 6,
+                      paddingVertical: 3,
+                      paddingHorizontal: 10,
+                      borderRadius: 999,
                       backgroundColor:
-                        dealType === 'free' ? '#2e7d32' : dealType === 'insane' ? '#b71c1c' : '#1565c0',
+                        dealType === 'free' ? '#16a34a' : dealType === 'insane' ? '#dc2626' : '#2563eb',
+                      // subtle shadow to keep readable on busy images
+                      shadowColor: '#000',
+                      shadowOpacity: 0.25,
+                      shadowRadius: 3,
+                      shadowOffset: { width: 0, height: 1 },
+                      elevation: 2,
                     }}
                   >
-                    <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 12 }}>
+                    <Text style={{
+                      color: '#ffffff',
+                      fontWeight: '700',
+                      fontSize: 11,
+                      letterSpacing: 0.3,
+                    }}>
                       {dealType.toUpperCase()}
                     </Text>
                   </View>
                 )}
             </View>
-            {/* Game title and price */}
-            <Text style={{ color: "white" , fontSize: 18, fontWeight: "bold", marginTop: 8 }}>{title}</Text>
-            <Text style={{ color: "white", fontSize: 16, marginTop: 4 }}>
-              {price}
-              {localApprox ? (
-                <Text
-                  style={{
-                    color: '#bbb',
-                    fontSize: 11,
-                    marginLeft: 4,
-                    position: 'relative',
-                    top: -3, // emulate superscript
-                  }}
-                  accessibilityLabel={`Approximate local price ${localApprox}`}
-                >{` ${localApprox}`}</Text>
-              ) : null}
-              {localApprox && localKind ? (
-                <Text
-                  style={{
-                    color: '#888',
-                    fontSize: 10,
-                    marginLeft: 2,
-                    position: 'relative',
-                    top: -4,
-                  }}
-                >{` ${localKind}`}</Text>
-              ) : null}
-              {typeof discountPct === 'number' && discountPct > 0 ? (
-                <Text style={{ color: '#9be89b', fontSize: 14 }}>{` (${Math.round(discountPct)}%)`}</Text>
-              ) : null}
+            {/* Title */}
+            <Text
+              style={{ color: colorScheme === 'dark' ? "#f5f5f5" : "#111" , fontSize: 16, fontWeight: "700", marginTop: 10 }}
+              numberOfLines={2}
+            >
+              {title}
             </Text>
-            {/* Icons for each platform supported by this deal */}
-      <View style={{ flexDirection: "row", gap: 10, marginVertical: 8 }}>
-        {platforms.map((platform) => (
-          <PlatformIcon key={platform} name={platform} color={theme.icon}/>
-        ))}
-      </View>
-            {/* Claim button: parent decides what to do (open link, choose platform, etc.) */}
-      <Button title="Claim" onPress={() => {
-        console.log(`Claiming deal: ${title}`)
-        onClaim()
-        }} />
+            {/* Price row */}
+            <View style={{ flexDirection: 'row', alignItems: 'baseline', marginTop: 6, flexWrap: 'wrap' }}>
+              <Text style={{ color: colorScheme === 'dark' ? "#f5f5f5" : "#111", fontSize: 16, fontWeight: '700' }}>
+                {price}
+                {/* tiny superscript local price */}
+                {localApprox ? (
+                  <Text
+                    style={{
+                      color: colorScheme === 'dark' ? '#a0a0a0' : '#6b7280',
+                      fontSize: 11,
+                      marginLeft: 4,
+                      position: 'relative',
+                      top: -3, // emulate superscript
+                      fontVariant: ['tabular-nums'],
+                    }}
+                    accessibilityLabel={`Local price ${localApprox}${localKind ? ` ${localKind}` : ''}`}
+                  >{` ${localApprox}`}</Text>
+                ) : null}
+                {/* tiny tag "exact"/"approx" for steam vs FX */}
+                {localApprox && localKind ? (
+                  <Text
+                    style={{
+                      color: colorScheme === 'dark' ? '#8e8e8e' : '#9aa0a6',
+                      fontSize: 10,
+                      marginLeft: 2,
+                      position: 'relative',
+                      top: -4,
+                    }}
+                  >{` ${localKind}`}</Text>
+                ) : null}
+              </Text>
+              {/* Green discount percent once, at the end */}
+              {typeof discountPct === 'number' && discountPct > 0 ? (
+                <Text style={{ color: '#12b981', fontSize: 14, marginLeft: 6 }}>{`(${Math.round(discountPct)}%)`}</Text>
+              ) : null}
+            </View>
+
+            {/* Footer: minimalist platforms text + outline claim */}
+            <View
+              style={{
+                marginTop: 10,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              {/* Minimal platforms text (e.g., Steam · Epic · GOG) */}
+              <Text style={{ color: colorScheme === 'dark' ? '#b0b0b0' : '#6b7280', fontSize: 13 }} numberOfLines={1}>
+                {platforms.map(p => storeLabel(p)).join(' · ')}
+              </Text>
+
+              {/* Claim outline button */}
+              <Pressable
+                onPress={() => { console.log(`Claiming deal: ${title}`); onClaim(); }}
+                accessibilityRole="button"
+                accessibilityLabel={`Claim ${title}`}
+                android_ripple={{ color: colorScheme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)', borderless: false }}
+                style={{
+                  backgroundColor: 'transparent',
+                  paddingVertical: 7,
+                  paddingHorizontal: 14,
+                  borderRadius: 999,
+                  borderWidth: 1,
+                  borderColor: colorScheme === 'dark' ? '#3a3a3a' : '#cfcfcf',
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
+                <FontAwesome5 name="external-link-alt" size={12} color={colorScheme === 'dark' ? '#e5e7eb' : '#374151'} />
+                <Text style={{ color: colorScheme === 'dark' ? '#e5e7eb' : '#374151', fontWeight: '700' }}>Claim</Text>
+              </Pressable>
+            </View>
         </View>
     );
 // Small helper component to render the correct store icon for a given platform name.
